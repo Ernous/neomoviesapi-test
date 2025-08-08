@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -73,18 +74,54 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	state := q.Get("state")
-	code := q.Get("code")
+	code := q.Get("code") 
+	preferJSON := q.Get("response") == "json" || strings.Contains(r.Header.Get("Accept"), "application/json")
 	cookie, _ := r.Cookie("oauth_state")
 	if cookie == nil || cookie.Value != state || code == "" {
+		if preferJSON {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(models.APIResponse{Success: false, Message: "invalid oauth state"})
+			return
+		}
+		redirectURL, ok := h.authService.BuildFrontendRedirect("", "invalid_state")
+		if ok {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 		http.Error(w, "invalid oauth state", http.StatusBadRequest)
 		return
 	}
 
 	resp, err := h.authService.HandleGoogleCallback(r.Context(), code)
 	if err != nil {
+		if preferJSON {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(models.APIResponse{Success: false, Message: err.Error()})
+			return
+		}
+		redirectURL, ok := h.authService.BuildFrontendRedirect("", "auth_failed")
+		if ok {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	if preferJSON {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(models.APIResponse{Success: true, Data: resp, Message: "Login successful"})
+		return
+	}
+
+	redirectURL, ok := h.authService.BuildFrontendRedirect(resp.Token, "")
+	if ok {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(models.APIResponse{Success: true, Data: resp, Message: "Login successful"})
 }

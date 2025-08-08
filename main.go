@@ -31,7 +31,8 @@ func main() {
 
 	tmdbService := services.NewTMDBService(cfg.TMDBAccessToken)
 	emailService := services.NewEmailService(cfg)
-	authService := services.NewAuthService(db, cfg.JWTSecret, emailService, cfg.BaseURL, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
+	authService := services.NewAuthService(db, cfg.JWTSecret, emailService, cfg.BaseURL, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL, cfg.FrontendURL)
+
 	movieService := services.NewMovieService(db, tmdbService)
 	tvService := services.NewTVService(db, tmdbService)
 	torrentService := services.NewTorrentServiceWithConfig(cfg.RedAPIBaseURL, cfg.RedAPIKey)

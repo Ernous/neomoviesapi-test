@@ -50,22 +50,32 @@ API будет доступен на `http://localhost:3000`
 
 ```bash
 # Обязательные
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/neomovies
-TMDB_ACCESS_TOKEN=your_tmdb_access_token_here
-JWT_SECRET=your_super_secret_jwt_key_here
+MONGO_URI=
+MONGO_DB_NAME=database
+TMDB_ACCESS_TOKEN=
+JWT_SECRET=
 
-# Для email уведомлений (Gmail)
-GMAIL_USER=your_gmail@gmail.com
-GMAIL_APP_PASSWORD=your_app_specific_password
-
-# Для плееров
-LUMEX_URL=your_lumex_player_url
-ALLOHA_TOKEN=your_alloha_token
-
-# Автоматические (Vercel)
+# Сервис
 PORT=3000
-BASE_URL=https://api.neomovies.ru
-NODE_ENV=production
+BASE_URL=http://localhost:3000
+NODE_ENV=development
+
+# Email (Gmail)
+GMAIL_USER=
+GMAIL_APP_PASSWORD=
+
+# Плееры
+LUMEX_URL=
+ALLOHA_TOKEN=
+
+# Торренты (RedAPI)
+REDAPI_BASE_URL=http://redapi.cfhttp.top
+REDAPI_KEY=
+
+# Google OAuth
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URL=http://localhost:3000/api/v1/auth/google/callback
 ```
 
 ## 📋 API Endpoints
@@ -81,6 +91,8 @@ POST /api/v1/auth/register                   # Регистрация (отпр�
 POST /api/v1/auth/verify                     # Подтверждение email кодом
 POST /api/v1/auth/resend-code               # Повторная отправка кода
 POST /api/v1/auth/login                      # Авторизация
+GET  /api/v1/auth/google/login               # Начало авторизации через Google (redirect)
+GET  /api/v1/auth/google/callback            # Коллбек Google OAuth (возвращает JWT)
 
 # Поиск и категории
 GET  /search/multi                           # Мультипоиск
@@ -108,14 +120,14 @@ GET  /api/v1/tv/{id}/recommendations         # Рекомендации
 GET  /api/v1/tv/{id}/similar                 # Похожие
 
 # Плееры
-GET  /api/v1/players/alloha                  # Alloha плеер
-GET  /api/v1/players/lumex                   # Lumex плеер
+GET  /api/v1/players/alloha/{imdb_id}          # Alloha плеер по IMDb ID
+GET  /api/v1/players/lumex/{imdb_id}           # Lumex плеер по IMDb ID
 
 # Торренты
 GET  /api/v1/torrents/search/{imdbId}        # Поиск торрентов
 
 # Реакции (публичные)
-GET  /api/v1/reactions/{type}/{id}/counts    # Счетчики реакций
+GET  /api/v1/reactions/{mediaType}/{mediaId}/counts    # Счетчики реакций
 
 # Изображения
 GET  /api/v1/images/{size}/{path}            # Прокси TMDB изображений
@@ -134,10 +146,10 @@ POST /api/v1/favorites/{id}                  # Добавить в избран�
 DELETE /api/v1/favorites/{id}                # Удалить из избранного
 
 # Реакции (приватные)
-GET  /api/v1/reactions/{type}/{id}/my-reaction # Моя реакция
-POST /api/v1/reactions/{type}/{id}           # Установить реакцию
-DELETE /api/v1/reactions/{type}/{id}         # Удалить реакцию
-GET  /api/v1/reactions/my                    # Все мои реакции
+GET  /api/v1/reactions/{mediaType}/{mediaId}/my-reaction # Моя реакция
+POST /api/v1/reactions/{mediaType}/{mediaId}           # Установить реакцию
+DELETE /api/v1/reactions/{mediaType}/{mediaId}         # Удалить реакцию
+GET  /api/v1/reactions/my                              # Все мои реакции
 ```
 
 ## 📖 Примеры использования

@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type AuthService struct {
 	googleClientID     string
 	googleClientSecret string
 	googleRedirectURL  string
+	frontendURL        string
 }
 
 // Reaction represents a reaction entry in the database.
@@ -42,7 +44,7 @@ type Reaction struct {
 }
 
 // NewAuthService creates and initializes a new AuthService.
-func NewAuthService(db *mongo.Database, jwtSecret string, emailService *EmailService, baseURL string, googleClientID string, googleClientSecret string, googleRedirectURL string) *AuthService {
+func NewAuthService(db *mongo.Database, jwtSecret string, emailService *EmailService, baseURL string, googleClientID string, googleClientSecret string, googleRedirectURL string, frontendURL string) *AuthService {
 	service := &AuthService{
 		db:           db,
 		jwtSecret:    jwtSecret,
@@ -51,6 +53,7 @@ func NewAuthService(db *mongo.Database, jwtSecret string, emailService *EmailSer
 		googleClientID:     googleClientID,
 		googleClientSecret: googleClientSecret,
 		googleRedirectURL:  googleRedirectURL,
+		frontendURL:        frontendURL,
 	}
 	return service
 }
@@ -83,6 +86,27 @@ type googleUserInfo struct {
 	Name    string `json:"name"`
 	Picture string `json:"picture"`
 	EmailVerified bool `json:"email_verified"`
+}
+
+// BuildFrontendRedirect builds frontend URL for redirect after OAuth; returns false if not configured
+func (s *AuthService) BuildFrontendRedirect(token string, authErr string) (string, bool) {
+	if s.frontendURL == "" {
+		return "", false
+	}
+	if authErr != "" {
+		u, _ := url.Parse(s.frontendURL + "/login")
+		q := u.Query()
+		q.Set("oauth", "google")
+		q.Set("error", authErr)
+		u.RawQuery = q.Encode()
+		return u.String(), true
+	}
+	u, _ := url.Parse(s.frontendURL + "/auth/callback")
+	q := u.Query()
+	q.Set("provider", "google")
+	q.Set("token", token)
+	u.RawQuery = q.Encode()
+	return u.String(), true
 }
 
 func (s *AuthService) HandleGoogleCallback(ctx context.Context, code string) (*models.AuthResponse, error) {
