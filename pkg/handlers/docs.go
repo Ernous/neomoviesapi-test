@@ -1171,6 +1171,39 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					},
 				},
 			},
+			"/api/v1/auth/google/login": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Google OAuth: начало",
+					"description": "Редирект на страницу авторизации Google",
+					"tags": []string{"Authentication"},
+					"responses": map[string]interface{}{
+						"302": map[string]interface{}{"description": "Redirect to Google"},
+						"400": map[string]interface{}{"description": "OAuth не сконфигурирован"},
+					},
+				},
+			},
+			"/api/v1/auth/google/callback": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Google OAuth: коллбек",
+					"description": "Обработка кода авторизации и выдача JWT",
+					"tags": []string{"Authentication"},
+					"parameters": []map[string]interface{}{
+						{"name": "state", "in": "query", "required": true, "schema": map[string]string{"type": "string"}},
+						{"name": "code", "in": "query", "required": true, "schema": map[string]string{"type": "string"}},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Успешная авторизация через Google",
+							"content": map[string]interface{}{
+								"application/json": map[string]interface{}{
+									"schema": map[string]interface{}{"$ref": "#/components/schemas/AuthResponse"},
+								},
+							},
+						},
+						"400": map[string]interface{}{"description": "Неверный state или ошибка обмена кода"},
+					},
+				},
+			},
 		},
 		Components: Components{
 			SecuritySchemes: map[string]SecurityScheme{
