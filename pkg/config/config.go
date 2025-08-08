@@ -22,6 +22,7 @@ type Config struct {
 	GoogleClientID  string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+	FrontendURL        string
 }
 
 func New() *Config {
@@ -44,6 +45,7 @@ func New() *Config {
 		GoogleClientID:  getEnv(EnvGoogleClientID, ""),
 		GoogleClientSecret: getEnv(EnvGoogleClientSecret, ""),
 		GoogleRedirectURL:  getEnv(EnvGoogleRedirectURL, ""),
+		FrontendURL:        getEnv(EnvFrontendURL, ""),
 	}
 }
 

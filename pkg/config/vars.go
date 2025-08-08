@@ -17,6 +17,7 @@ const (
 	EnvGoogleClientID    = "GOOGLE_CLIENT_ID"
 	EnvGoogleClientSecret= "GOOGLE_CLIENT_SECRET"
 	EnvGoogleRedirectURL = "GOOGLE_REDIRECT_URL"
+	EnvFrontendURL       = "FRONTEND_URL"
 
 	// Default values
 	DefaultJWTSecret   = "your-secret-key"

@@ -76,15 +76,32 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	code := q.Get("code")
 	cookie, _ := r.Cookie("oauth_state")
 	if cookie == nil || cookie.Value != state || code == "" {
+		redirectURL, ok := h.authService.BuildFrontendRedirect("", "invalid_state")
+		if ok {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 		http.Error(w, "invalid oauth state", http.StatusBadRequest)
 		return
 	}
 
 	resp, err := h.authService.HandleGoogleCallback(r.Context(), code)
 	if err != nil {
+		redirectURL, ok := h.authService.BuildFrontendRedirect("", "auth_failed")
+		if ok {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	redirectURL, ok := h.authService.BuildFrontendRedirect(resp.Token, "")
+	if ok {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(models.APIResponse{Success: true, Data: resp, Message: "Login successful"})
 }
