@@ -9,17 +9,13 @@ import (
 	"github.com/MarceloPetrucio/go-scalar-api-reference"
 )
 
-type DocsHandler struct {
-	// Убираем статическую спецификацию
-}
+type DocsHandler struct{}
 
 func NewDocsHandler() *DocsHandler {
 	return &DocsHandler{}
 }
 
 func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Обслуживаем документацию для всех путей
-	// Это нужно для правильной работы Scalar API Reference
 	h.ServeDocs(w, r)
 }
 
@@ -28,7 +24,6 @@ func (h *DocsHandler) RedirectToDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	// Определяем baseURL динамически
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
 		if r.TLS != nil {
@@ -38,7 +33,6 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Генерируем спецификацию с правильным URL
 	spec := getOpenAPISpecWithURL(baseURL)
 
 	w.Header().Set("Content-Type", "application/json")
