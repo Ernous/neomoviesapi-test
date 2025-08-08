@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	MongoURI        string
+	MongoDBName     string
 	TMDBAccessToken string
 	JWTSecret       string
 	Port            string
@@ -16,40 +17,43 @@ type Config struct {
 	GmailPassword   string
 	LumexURL        string
 	AllohaToken     string
+	RedAPIBaseURL   string
+	RedAPIKey       string
+	GoogleClientID  string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func New() *Config {
-	// Добавляем отладочное логирование для Vercel
 	mongoURI := getMongoURI()
-	log.Printf("DEBUG: MongoDB URI configured (length: %d)", len(mongoURI))
-	
+
 	return &Config{
 		MongoURI:        mongoURI,
-		TMDBAccessToken: getEnv("TMDB_ACCESS_TOKEN", ""),
-		JWTSecret:       getEnv("JWT_SECRET", "your-secret-key"),
-		Port:            getEnv("PORT", "3000"),
-		BaseURL:         getEnv("BASE_URL", "http://localhost:3000"),
-		NodeEnv:         getEnv("NODE_ENV", "development"),
-		GmailUser:       getEnv("GMAIL_USER", ""),
-		GmailPassword:   getEnv("GMAIL_APP_PASSWORD", ""),
-		LumexURL:        getEnv("LUMEX_URL", ""),
-		AllohaToken:     getEnv("ALLOHA_TOKEN", ""),
+		MongoDBName:     getEnv(EnvMongoDBName, DefaultMongoDBName),
+		TMDBAccessToken: getEnv(EnvTMDBAccessToken, ""),
+		JWTSecret:       getEnv(EnvJWTSecret, DefaultJWTSecret),
+		Port:            getEnv(EnvPort, DefaultPort),
+		BaseURL:         getEnv(EnvBaseURL, DefaultBaseURL),
+		NodeEnv:         getEnv(EnvNodeEnv, DefaultNodeEnv),
+		GmailUser:       getEnv(EnvGmailUser, ""),
+		GmailPassword:   getEnv(EnvGmailPassword, ""),
+		LumexURL:        getEnv(EnvLumexURL, ""),
+		AllohaToken:     getEnv(EnvAllohaToken, ""),
+		RedAPIBaseURL:   getEnv(EnvRedAPIBaseURL, DefaultRedAPIBase),
+		RedAPIKey:       getEnv(EnvRedAPIKey, ""),
+		GoogleClientID:  getEnv(EnvGoogleClientID, ""),
+		GoogleClientSecret: getEnv(EnvGoogleClientSecret, ""),
+		GoogleRedirectURL:  getEnv(EnvGoogleRedirectURL, ""),
 	}
 }
 
-// getMongoURI проверяет различные варианты названий переменных для MongoDB URI
 func getMongoURI() string {
-	// Проверяем различные возможные названия переменных
-	envVars := []string{"MONGO_URI", "MONGODB_URI", "DATABASE_URL", "MONGO_URL"}
-	
-	for _, envVar := range envVars {
+	for _, envVar := range []string{"MONGO_URI", "MONGODB_URI", "DATABASE_URL", "MONGO_URL"} {
 		if value := os.Getenv(envVar); value != "" {
 			log.Printf("DEBUG: Using %s for MongoDB connection", envVar)
 			return value
 		}
 	}
-	
-	// Если ни одна переменная не найдена, возвращаем пустую строку
 	log.Printf("DEBUG: No MongoDB URI environment variable found")
 	return ""
 }

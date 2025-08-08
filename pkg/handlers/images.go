@@ -9,15 +9,12 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"neomovies-api/pkg/config"
 )
 
 type ImagesHandler struct{}
 
-func NewImagesHandler() *ImagesHandler {
-	return &ImagesHandler{}
-}
-
-const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p"
+func NewImagesHandler() *ImagesHandler { return &ImagesHandler{} }
 
 func (h *ImagesHandler) GetImage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -29,22 +26,18 @@ func (h *ImagesHandler) GetImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Если запрашивается placeholder, возвращаем локальный файл
 	if imagePath == "placeholder.jpg" {
 		h.servePlaceholder(w, r)
 		return
 	}
 
-	// Проверяем размер изображения
 	validSizes := []string{"w92", "w154", "w185", "w342", "w500", "w780", "original"}
 	if !h.isValidSize(size, validSizes) {
 		size = "original"
 	}
 
-	// Формируем URL изображения
-	imageURL := fmt.Sprintf("%s/%s/%s", TMDB_IMAGE_BASE_URL, size, imagePath)
+	imageURL := fmt.Sprintf("%s/%s/%s", config.TMDBImageBaseURL, size, imagePath)
 
-	// Получаем изображение
 	resp, err := http.Get(imageURL)
 	if err != nil {
 		h.servePlaceholder(w, r)
@@ -57,23 +50,19 @@ func (h *ImagesHandler) GetImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Устанавливаем заголовки
 	if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
-	w.Header().Set("Cache-Control", "public, max-age=31536000") // кэшируем на 1 год
+	w.Header().Set("Cache-Control", "public, max-age=31536000")
 
-	// Передаем изображение клиенту
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
-		// Если ошибка при копировании, отдаем placeholder
 		h.servePlaceholder(w, r)
 		return
 	}
 }
 
 func (h *ImagesHandler) servePlaceholder(w http.ResponseWriter, r *http.Request) {
-	// Попробуем найти placeholder изображение
 	placeholderPaths := []string{
 		"./assets/placeholder.jpg",
 		"./public/images/placeholder.jpg",
@@ -89,7 +78,6 @@ func (h *ImagesHandler) servePlaceholder(w http.ResponseWriter, r *http.Request)
 	}
 
 	if placeholderPath == "" {
-		// Если placeholder не найден, создаем простую SVG заглушку
 		h.serveSVGPlaceholder(w, r)
 		return
 	}
@@ -101,7 +89,6 @@ func (h *ImagesHandler) servePlaceholder(w http.ResponseWriter, r *http.Request)
 	}
 	defer file.Close()
 
-	// Определяем content-type по расширению
 	ext := strings.ToLower(filepath.Ext(placeholderPath))
 	switch ext {
 	case ".jpg", ".jpeg":
@@ -116,7 +103,7 @@ func (h *ImagesHandler) servePlaceholder(w http.ResponseWriter, r *http.Request)
 		w.Header().Set("Content-Type", "image/jpeg")
 	}
 
-	w.Header().Set("Cache-Control", "public, max-age=3600") // кэшируем placeholder на 1 час
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	_, err = io.Copy(w, file)
 	if err != nil {

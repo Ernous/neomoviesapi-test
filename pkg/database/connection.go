@@ -10,7 +10,7 @@ import (
 
 var client *mongo.Client
 
-func Connect(uri string) (*mongo.Database, error) {
+func Connect(uri, dbName string) (*mongo.Database, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -20,13 +20,11 @@ func Connect(uri string) (*mongo.Database, error) {
 		return nil, err
 	}
 
-	// Проверяем соединение
-	err = client.Ping(ctx, nil)
-	if err != nil {
+	if err = client.Ping(ctx, nil); err != nil {
 		return nil, err
 	}
 
-	return client.Database("database"), nil
+	return client.Database(dbName), nil
 }
 
 func Disconnect() error {
@@ -40,6 +38,4 @@ func Disconnect() error {
 	return client.Disconnect(ctx)
 }
 
-func GetClient() *mongo.Client {
-	return client
-}
+func GetClient() *mongo.Client { return client }

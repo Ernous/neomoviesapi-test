@@ -21,11 +21,19 @@ type TorrentService struct {
 	apiKey  string
 }
 
+func NewTorrentServiceWithConfig(baseURL, apiKey string) *TorrentService {
+	return &TorrentService{
+		client:  &http.Client{Timeout: 8 * time.Second},
+		baseURL: baseURL,
+		apiKey:  apiKey,
+	}
+}
+
 func NewTorrentService() *TorrentService {
 	return &TorrentService{
 		client:  &http.Client{Timeout: 8 * time.Second},
 		baseURL: "http://redapi.cfhttp.top",
-		apiKey:  "", // Может быть установлен через переменные окружения
+		apiKey:  "",
 	}
 }
 
@@ -33,7 +41,6 @@ func NewTorrentService() *TorrentService {
 func (s *TorrentService) SearchTorrents(params map[string]string) (*models.TorrentSearchResponse, error) {
 	searchParams := url.Values{}
 
-	// Добавляем все параметры поиска
 	for key, value := range params {
 		if value != "" {
 			if key == "category" {
@@ -80,7 +87,6 @@ func (s *TorrentService) parseRedAPIResults(data models.RedAPIResponse) []models
 	var results []models.TorrentResult
 
 	for _, torrent := range data.Results {
-		// Обрабатываем размер - может быть строкой или числом
 		var sizeStr string
 		switch v := torrent.Size.(type) {
 		case string:
@@ -106,9 +112,7 @@ func (s *TorrentService) parseRedAPIResults(data models.RedAPIResponse) []models
 			Source:      "RedAPI",
 		}
 
-		// Добавляем информацию из Info если она есть
 		if torrent.Info != nil {
-			// Обрабатываем качество - может быть строкой или числом
 			switch v := torrent.Info.Quality.(type) {
 			case string:
 				result.Quality = v
@@ -123,7 +127,6 @@ func (s *TorrentService) parseRedAPIResults(data models.RedAPIResponse) []models
 			result.Seasons = torrent.Info.Seasons
 		}
 
-		// Если качество не определено через Info, пытаемся извлечь из названия
 		if result.Quality == "" {
 			result.Quality = s.ExtractQuality(result.Title)
 		}
@@ -136,14 +139,11 @@ func (s *TorrentService) parseRedAPIResults(data models.RedAPIResponse) []models
 
 // SearchTorrentsByIMDbID - поиск по IMDB ID с поддержкой всех функций
 func (s *TorrentService) SearchTorrentsByIMDbID(tmdbService *TMDBService, imdbID, mediaType string, options *models.TorrentSearchOptions) (*models.TorrentSearchResponse, error) {
-	// Получаем информацию о фильме/сериале из TMDB
-	// ИСПРАВЛЕНО: Теперь присваиваются все 4 возвращаемых значения
 	title, originalTitle, year, err := s.getTitleFromTMDB(tmdbService, imdbID, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get title from TMDB: %w", err)
 	}
 
-	// Создаем параметры поиска для RedAPI
 	params := map[string]string{
 		"imdb":           imdbID,
 		"query":          title,
@@ -151,7 +151,6 @@ func (s *TorrentService) SearchTorrentsByIMDbID(tmdbService *TMDBService, imdbID
 		"year":           year,
 	}
 
-	// Определяем тип контента для API
 	switch mediaType {
 	case "movie":
 		params["is_serial"] = "1"
@@ -164,18 +163,15 @@ func (s *TorrentService) SearchTorrentsByIMDbID(tmdbService *TMDBService, imdbID
 		params["category"] = "5070"
 	}
 
-	// Добавляем сезон, если он указан
 	if options != nil && options.Season != nil && *options.Season > 0 {
 		params["season"] = strconv.Itoa(*options.Season)
 	}
 
-	// Выполняем поиск
 	response, err := s.SearchTorrents(params)
 	if err != nil {
 		return nil, err
 	}
 
-	// Применяем фильтрацию
 	if options != nil {
 		response.Results = s.FilterByContentType(response.Results, options.ContentType)
 		response.Results = s.FilterTorrents(response.Results, options)
@@ -183,7 +179,6 @@ func (s *TorrentService) SearchTorrentsByIMDbID(tmdbService *TMDBService, imdbID
 	}
 	response.Total = len(response.Results)
 
-	// Fallback для сериалов, если результатов мало
 	if len(response.Results) < 5 && (mediaType == "serial" || mediaType == "series" || mediaType == "tv") && options != nil && options.Season != nil {
 		paramsNoSeason := map[string]string{
 			"imdb":           imdbID,
@@ -206,7 +201,6 @@ func (s *TorrentService) SearchTorrentsByIMDbID(tmdbService *TMDBService, imdbID
 				}
 			}
 			response.Results = unique
-			response.Total = len(response.Results)
 		}
 	}
 

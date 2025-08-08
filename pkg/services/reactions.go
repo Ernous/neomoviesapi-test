@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"neomovies-api/pkg/config"
 	"neomovies-api/pkg/models"
 )
 
@@ -27,17 +28,15 @@ func NewReactionsService(db *mongo.Database) *ReactionsService {
 	}
 }
 
-const CUB_API_URL = "https://cub.rip/api"
-
-var VALID_REACTIONS = []string{"fire", "nice", "think", "bore", "shit"}
+var validReactions = []string{"fire", "nice", "think", "bore", "shit"}
 
 // Получить счетчики реакций для медиа из внешнего API (cub.rip)
 func (s *ReactionsService) GetReactionCounts(mediaType, mediaID string) (*models.ReactionCounts, error) {
 	cubID := fmt.Sprintf("%s_%s", mediaType, mediaID)
 	
-	resp, err := s.client.Get(fmt.Sprintf("%s/reactions/get/%s", CUB_API_URL, cubID))
+	resp, err := s.client.Get(fmt.Sprintf("%s/reactions/get/%s", config.CubAPIBaseURL, cubID))
 	if err != nil {
-		return &models.ReactionCounts{}, nil // Возвращаем пустые счетчики при ошибке
+		return &models.ReactionCounts{}, nil
 	}
 	defer resp.Body.Close()
 
@@ -61,7 +60,6 @@ func (s *ReactionsService) GetReactionCounts(mediaType, mediaID string) (*models
 		return &models.ReactionCounts{}, nil
 	}
 
-	// Преобразуем в нашу структуру
 	counts := &models.ReactionCounts{}
 	for _, reaction := range response.Result {
 		switch reaction.Type {
@@ -81,75 +79,57 @@ func (s *ReactionsService) GetReactionCounts(mediaType, mediaID string) (*models
 	return counts, nil
 }
 
-// Получить реакцию пользователя для медиа
-func (s *ReactionsService) GetUserReaction(userID, mediaType, mediaID string) (*models.Reaction, error) {
+func (s *ReactionsService) GetMyReaction(userID, mediaType, mediaID string) (string, error) {
 	collection := s.db.Collection("reactions")
-	fullMediaID := fmt.Sprintf("%s_%s", mediaType, mediaID)
+	ctx := context.Background()
 
-	var reaction models.Reaction
-	err := collection.FindOne(context.Background(), bson.M{
-		"userId":  userID,
-		"mediaId": fullMediaID,
-	}).Decode(&reaction)
-
-	if err == mongo.ErrNoDocuments {
-		return nil, nil // Реакции нет
-	}
-
-	return &reaction, err
-}
-
-// Установить реакцию пользователя
-func (s *ReactionsService) SetUserReaction(userID, mediaType, mediaID, reactionType string) error {
-	// Проверяем валидность типа реакции
-	if !s.isValidReactionType(reactionType) {
-		return fmt.Errorf("invalid reaction type: %s", reactionType)
-	}
-
-	collection := s.db.Collection("reactions")
-	fullMediaID := fmt.Sprintf("%s_%s", mediaType, mediaID)
-
-	// Создаем или обновляем реакцию
-	filter := bson.M{
-		"userId":  userID,
-		"mediaId": fullMediaID,
-	}
-
-	reaction := models.Reaction{
-		UserID:  userID,
-		MediaID: fullMediaID,
-		Type:    reactionType,
-		Created: time.Now().Format(time.RFC3339),
-	}
-
-	update := bson.M{
-		"$set": reaction,
-	}
-
-	upsert := true
-	_, err := collection.UpdateOne(context.Background(), filter, update, &options.UpdateOptions{
-		Upsert: &upsert,
-	})
-
+	var result struct{ Type string `bson:"type"` }
+	err := collection.FindOne(ctx, bson.M{
+		"userId":    userID,
+		"mediaType": mediaType,
+		"mediaId":   mediaID,
+	}).Decode(&result)
 	if err != nil {
-		return err
+		if err == mongo.ErrNoDocuments {
+			return "", nil
+		}
+		return "", err
 	}
-
-	// Отправляем реакцию в cub.rip API
-	go s.sendReactionToCub(fullMediaID, reactionType)
-
-	return nil
+	return result.Type, nil
 }
 
-// Удалить реакцию пользователя
-func (s *ReactionsService) RemoveUserReaction(userID, mediaType, mediaID string) error {
-	collection := s.db.Collection("reactions")
-	fullMediaID := fmt.Sprintf("%s_%s", mediaType, mediaID)
+func (s *ReactionsService) SetReaction(userID, mediaType, mediaID, reactionType string) error {
+	if !s.isValidReactionType(reactionType) {
+		return fmt.Errorf("invalid reaction type")
+	}
 
-	_, err := collection.DeleteOne(context.Background(), bson.M{
-		"userId":  userID,
-		"mediaId": fullMediaID,
+	collection := s.db.Collection("reactions")
+	ctx := context.Background()
+
+	_, err := collection.UpdateOne(
+		ctx,
+		bson.M{"userId": userID, "mediaType": mediaType, "mediaId": mediaID},
+		bson.M{"$set": bson.M{"type": reactionType, "updatedAt": time.Now()}},
+		options.Update().SetUpsert(true),
+	)
+	if err == nil {
+		go s.sendReactionToCub(fmt.Sprintf("%s_%s", mediaType, mediaID), reactionType)
+	}
+	return err
+}
+
+func (s *ReactionsService) RemoveReaction(userID, mediaType, mediaID string) error {
+	collection := s.db.Collection("reactions")
+	ctx := context.Background()
+
+	_, err := collection.DeleteOne(ctx, bson.M{
+		"userId":    userID,
+		"mediaType": mediaType,
+		"mediaId":   mediaID,
 	})
+
+	fullMediaID := fmt.Sprintf("%s_%s", mediaType, mediaID)
+	go s.sendReactionToCub(fullMediaID, "remove")
 
 	return err
 }
@@ -174,7 +154,7 @@ func (s *ReactionsService) GetUserReactions(userID string, limit int) ([]models.
 }
 
 func (s *ReactionsService) isValidReactionType(reactionType string) bool {
-	for _, valid := range VALID_REACTIONS {
+	for _, valid := range validReactions {
 		if valid == reactionType {
 			return true
 		}
@@ -184,8 +164,7 @@ func (s *ReactionsService) isValidReactionType(reactionType string) bool {
 
 // Отправка реакции в cub.rip API (асинхронно)
 func (s *ReactionsService) sendReactionToCub(mediaID, reactionType string) {
-	// Формируем запрос к cub.rip API
-	url := fmt.Sprintf("%s/reactions/set", CUB_API_URL)
+	url := fmt.Sprintf("%s/reactions/set", config.CubAPIBaseURL)
 	
 	data := map[string]string{
 		"mediaId": mediaID,
@@ -197,15 +176,12 @@ func (s *ReactionsService) sendReactionToCub(mediaID, reactionType string) {
 		return
 	}
 
-	// В данном случае мы отправляем простой POST запрос
-	// В будущем можно доработать для отправки JSON данных
 	resp, err := s.client.Get(fmt.Sprintf("%s?mediaId=%s&type=%s", url, mediaID, reactionType))
 	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
 
-	// Логируем результат (в продакшене лучше использовать структурированное логирование)
 	if resp.StatusCode == http.StatusOK {
 		fmt.Printf("Reaction sent to cub.rip: %s - %s\n", mediaID, reactionType)
 	}

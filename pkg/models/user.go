@@ -20,6 +20,8 @@ type User struct {
 	AdminVerified      bool               `json:"adminVerified" bson:"adminVerified"`
 	CreatedAt          time.Time          `json:"created_at" bson:"createdAt"`
 	UpdatedAt          time.Time          `json:"updated_at" bson:"updatedAt"`
+	Provider           string             `json:"provider,omitempty" bson:"provider,omitempty"`
+	GoogleID           string             `json:"googleId,omitempty" bson:"googleId,omitempty"`
 }
 
 type LoginRequest struct {

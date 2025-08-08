@@ -9,17 +9,13 @@ import (
 	"github.com/MarceloPetrucio/go-scalar-api-reference"
 )
 
-type DocsHandler struct {
-	// Убираем статическую спецификацию
-}
+type DocsHandler struct{}
 
 func NewDocsHandler() *DocsHandler {
 	return &DocsHandler{}
 }
 
 func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Обслуживаем документацию для всех путей
-	// Это нужно для правильной работы Scalar API Reference
 	h.ServeDocs(w, r)
 }
 
@@ -28,7 +24,6 @@ func (h *DocsHandler) RedirectToDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	// Определяем baseURL динамически
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
 		if r.TLS != nil {
@@ -38,7 +33,6 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Генерируем спецификацию с правильным URL
 	spec := getOpenAPISpecWithURL(baseURL)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1174,6 +1168,39 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 								},
 							},
 						},
+					},
+				},
+			},
+			"/api/v1/auth/google/login": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Google OAuth: начало",
+					"description": "Редирект на страницу авторизации Google",
+					"tags": []string{"Authentication"},
+					"responses": map[string]interface{}{
+						"302": map[string]interface{}{"description": "Redirect to Google"},
+						"400": map[string]interface{}{"description": "OAuth не сконфигурирован"},
+					},
+				},
+			},
+			"/api/v1/auth/google/callback": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Google OAuth: коллбек",
+					"description": "Обработка кода авторизации и выдача JWT",
+					"tags": []string{"Authentication"},
+					"parameters": []map[string]interface{}{
+						{"name": "state", "in": "query", "required": true, "schema": map[string]string{"type": "string"}},
+						{"name": "code", "in": "query", "required": true, "schema": map[string]string{"type": "string"}},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Успешная авторизация через Google",
+							"content": map[string]interface{}{
+								"application/json": map[string]interface{}{
+									"schema": map[string]interface{}{"$ref": "#/components/schemas/AuthResponse"},
+								},
+							},
+						},
+						"400": map[string]interface{}{"description": "Неверный state или ошибка обмена кода"},
 					},
 				},
 			},
