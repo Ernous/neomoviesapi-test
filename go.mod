@@ -1,6 +1,6 @@
 module neomovies-api
 
-go 1.22.0
+go 1.23.0
 
 toolchain go1.24.2
 
@@ -13,9 +13,11 @@ require (
 	github.com/joho/godotenv v1.5.1
 	go.mongodb.org/mongo-driver v1.11.6
 	golang.org/x/crypto v0.17.0
+	golang.org/x/oauth2 v0.30.0
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect

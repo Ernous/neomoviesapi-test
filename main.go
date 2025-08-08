@@ -31,7 +31,7 @@ func main() {
 
 	tmdbService := services.NewTMDBService(cfg.TMDBAccessToken)
 	emailService := services.NewEmailService(cfg)
-	authService := services.NewAuthService(db, cfg.JWTSecret, emailService, cfg.BaseURL)
+	authService := services.NewAuthService(db, cfg.JWTSecret, emailService, cfg.BaseURL, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
 	movieService := services.NewMovieService(db, tmdbService)
 	tvService := services.NewTVService(db, tmdbService)
 	torrentService := services.NewTorrentServiceWithConfig(cfg.RedAPIBaseURL, cfg.RedAPIKey)
@@ -60,6 +60,8 @@ func main() {
 	api.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
 	api.HandleFunc("/auth/verify", authHandler.VerifyEmail).Methods("POST")
 	api.HandleFunc("/auth/resend-code", authHandler.ResendVerificationCode).Methods("POST")
+	api.HandleFunc("/auth/google/login", authHandler.GoogleLogin).Methods("GET")
+	api.HandleFunc("/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
 
 	r.HandleFunc("/search/multi", searchHandler.MultiSearch).Methods("GET")
 

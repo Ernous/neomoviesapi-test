@@ -16,6 +16,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"encoding/json"
 
 	"neomovies-api/pkg/models"
 )
@@ -25,7 +28,10 @@ type AuthService struct {
 	db           *mongo.Database
 	jwtSecret    string
 	emailService *EmailService
-	cubAPIURL    string
+	baseURL      string
+	googleClientID     string
+	googleClientSecret string
+	googleRedirectURL  string
 }
 
 // Reaction represents a reaction entry in the database.
@@ -36,15 +42,130 @@ type Reaction struct {
 }
 
 // NewAuthService creates and initializes a new AuthService.
-func NewAuthService(db *mongo.Database, jwtSecret string, emailService *EmailService, cubAPIURL string) *AuthService {
+func NewAuthService(db *mongo.Database, jwtSecret string, emailService *EmailService, baseURL string, googleClientID string, googleClientSecret string, googleRedirectURL string) *AuthService {
 	service := &AuthService{
 		db:           db,
 		jwtSecret:    jwtSecret,
 		emailService: emailService,
-		cubAPIURL:    cubAPIURL,
+		baseURL:      baseURL,
+		googleClientID:     googleClientID,
+		googleClientSecret: googleClientSecret,
+		googleRedirectURL:  googleRedirectURL,
 	}
-    
 	return service
+}
+
+func (s *AuthService) googleOAuthConfig() *oauth2.Config {
+	redirectURL := s.googleRedirectURL
+	if redirectURL == "" && s.baseURL != "" {
+		redirectURL = fmt.Sprintf("%s/api/v1/auth/google/callback", s.baseURL)
+	}
+	return &oauth2.Config{
+		ClientID:     s.googleClientID,
+		ClientSecret: s.googleClientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       []string{"openid", "email", "profile"},
+		Endpoint:     google.Endpoint,
+	}
+}
+
+func (s *AuthService) GetGoogleLoginURL(state string) (string, error) {
+	cfg := s.googleOAuthConfig()
+	if cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.RedirectURL == "" {
+		return "", errors.New("google oauth not configured")
+	}
+	return cfg.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
+}
+
+type googleUserInfo struct {
+	Sub     string `json:"sub"`
+	Email   string `json:"email"`
+	Name    string `json:"name"`
+	Picture string `json:"picture"`
+	EmailVerified bool `json:"email_verified"`
+}
+
+func (s *AuthService) HandleGoogleCallback(ctx context.Context, code string) (*models.AuthResponse, error) {
+	cfg := s.googleOAuthConfig()
+	tok, err := cfg.Exchange(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code: %w", err)
+	}
+
+	client := cfg.Client(ctx, tok)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch userinfo: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo request failed: status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var gUser googleUserInfo
+	if err := json.Unmarshal(body, &gUser); err != nil {
+		return nil, fmt.Errorf("failed to parse userinfo: %w", err)
+	}
+	if gUser.Email == "" {
+		return nil, errors.New("email not provided by Google")
+	}
+
+	collection := s.db.Collection("users")
+
+	// Try by googleId first
+	var user models.User
+	err = collection.FindOne(ctx, bson.M{"googleId": gUser.Sub}).Decode(&user)
+	if err == mongo.ErrNoDocuments {
+		// Try by email
+		err = collection.FindOne(ctx, bson.M{"email": gUser.Email}).Decode(&user)
+	}
+	if err == mongo.ErrNoDocuments {
+		// Create new user
+		user = models.User{
+			ID:        primitive.NewObjectID(),
+			Email:     gUser.Email,
+			Password:  "",
+			Name:      gUser.Name,
+			Avatar:    gUser.Picture,
+			Favorites: []string{},
+			Verified:  true,
+			IsAdmin:   false,
+			AdminVerified: false,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Provider:  "google",
+			GoogleID:  gUser.Sub,
+		}
+		if _, err := collection.InsertOne(ctx, user); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	} else {
+		// Existing user: ensure fields
+		update := bson.M{
+			"verified": true,
+			"provider": "google",
+			"googleId": gUser.Sub,
+			"updatedAt": time.Now(),
+		}
+		if user.Name == "" && gUser.Name != "" { update["name"] = gUser.Name }
+		if user.Avatar == "" && gUser.Picture != "" { update["avatar"] = gUser.Picture }
+		_, _ = collection.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": update})
+	}
+
+	// Generate JWT
+	if user.ID.IsZero() {
+		// If we created user above, we already have user.ID set; else fetch updated
+		_ = collection.FindOne(ctx, bson.M{"email": gUser.Email}).Decode(&user)
+	}
+	token, err := s.generateJWT(user.ID.Hex())
+	if err != nil { return nil, err }
+
+	return &models.AuthResponse{ Token: token, User: user }, nil
 }
 
 // generateVerificationCode creates a 6-digit verification code.
@@ -275,7 +396,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string) error {
 	}
 
 	// Step 1: Find user reactions and remove them from cub.rip
-	if s.cubAPIURL != "" {
+	if s.baseURL != "" { // Changed from cubAPIURL to baseURL
 		reactionsCollection := s.db.Collection("reactions")
 		var userReactions []Reaction
 		cursor, err := reactionsCollection.Find(ctx, bson.M{"userId": objectID})
@@ -293,7 +414,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string) error {
 			wg.Add(1)
 			go func(r Reaction) {
 				defer wg.Done()
-				url := fmt.Sprintf("%s/reactions/remove/%s/%s", s.cubAPIURL, r.MediaID, r.Type)
+				url := fmt.Sprintf("%s/reactions/remove/%s/%s", s.baseURL, r.MediaID, r.Type) // Changed from cubAPIURL to baseURL
 				req, err := http.NewRequestWithContext(ctx, "POST", url, nil) // or "DELETE"
 				if err != nil {
 					// Log the error but don't stop the process

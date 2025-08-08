@@ -19,6 +19,9 @@ type Config struct {
 	AllohaToken     string
 	RedAPIBaseURL   string
 	RedAPIKey       string
+	GoogleClientID  string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func New() *Config {
@@ -38,6 +41,9 @@ func New() *Config {
 		AllohaToken:     getEnv(EnvAllohaToken, ""),
 		RedAPIBaseURL:   getEnv(EnvRedAPIBaseURL, DefaultRedAPIBase),
 		RedAPIKey:       getEnv(EnvRedAPIKey, ""),
+		GoogleClientID:  getEnv(EnvGoogleClientID, ""),
+		GoogleClientSecret: getEnv(EnvGoogleClientSecret, ""),
+		GoogleRedirectURL:  getEnv(EnvGoogleRedirectURL, ""),
 	}
 }
 
