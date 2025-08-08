@@ -74,7 +74,7 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	state := q.Get("state")
-	code := q.Get("code")
+	code := q.Get("code") 
 	preferJSON := q.Get("response") == "json" || strings.Contains(r.Header.Get("Accept"), "application/json")
 	cookie, _ := r.Cookie("oauth_state")
 	if cookie == nil || cookie.Value != state || code == "" {

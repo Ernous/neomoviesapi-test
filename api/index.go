@@ -52,6 +52,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     tmdbService := services.NewTMDBService(globalCfg.TMDBAccessToken)
     emailService := services.NewEmailService(globalCfg)
     authService := services.NewAuthService(globalDB, globalCfg.JWTSecret, emailService, globalCfg.BaseURL, globalCfg.GoogleClientID, globalCfg.GoogleClientSecret, globalCfg.GoogleRedirectURL, globalCfg.FrontendURL)
+
     movieService := services.NewMovieService(globalDB, tmdbService)
     tvService := services.NewTVService(globalDB, tmdbService)
     torrentService := services.NewTorrentServiceWithConfig(globalCfg.RedAPIBaseURL, globalCfg.RedAPIKey)
