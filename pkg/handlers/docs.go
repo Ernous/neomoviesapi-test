@@ -37,11 +37,11 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
-	_ = determineBaseURL(r)
+	baseURL := determineBaseURL(r)
 
-	// Use relative SpecURL so the browser automatically uses the current origin and protocol
+	// Use absolute SpecURL so the library does not try to read a local file path
 	htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
-		SpecURL: "/openapi.json",
+		SpecURL: fmt.Sprintf("%s/openapi.json", baseURL),
 		CustomOptions: scalar.CustomOptions{
 			PageTitle: "Neo Movies API Documentation",
 		},
