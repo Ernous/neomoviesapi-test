@@ -47,6 +47,7 @@ func main() {
 	searchHandler := appHandlers.NewSearchHandler(tmdbService)
 	categoriesHandler := appHandlers.NewCategoriesHandler(tmdbService)
 	playersHandler := appHandlers.NewPlayersHandler(cfg)
+	webtorrentHandler := appHandlers.NewWebTorrentHandler(tmdbService)
 	torrentsHandler := appHandlers.NewTorrentsHandler(torrentService, tmdbService)
 	reactionsHandler := appHandlers.NewReactionsHandler(reactionsService)
 	imagesHandler := appHandlers.NewImagesHandler()
@@ -75,6 +76,9 @@ func main() {
 	api.HandleFunc("/players/alloha/{imdb_id}", playersHandler.GetAllohaPlayer).Methods("GET")
 	api.HandleFunc("/players/lumex/{imdb_id}", playersHandler.GetLumexPlayer).Methods("GET")
     api.HandleFunc("/players/vibix/{imdb_id}", playersHandler.GetVibixPlayer).Methods("GET")
+
+	api.HandleFunc("/webtorrent/player", webtorrentHandler.OpenPlayer).Methods("GET")
+	api.HandleFunc("/webtorrent/metadata", webtorrentHandler.GetMetadata).Methods("GET")
 
 	api.HandleFunc("/torrents/search/{imdbId}", torrentsHandler.SearchTorrents).Methods("GET")
 	api.HandleFunc("/torrents/movies", torrentsHandler.SearchMovies).Methods("GET")

@@ -333,6 +333,76 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					},
 				},
 			},
+			"/api/v1/webtorrent/player": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "WebTorrent плеер",
+					"description": "Открытие WebTorrent плеера с магнет ссылкой. Плеер работает полностью на стороне клиента.",
+					"tags": []string{"WebTorrent"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "magnet",
+							"in": "query",
+							"required": false,
+							"schema": map[string]string{"type": "string"},
+							"description": "Магнет ссылка торрента",
+						},
+						{
+							"name": "X-Magnet-Link",
+							"in": "header",
+							"required": false,
+							"schema": map[string]string{"type": "string"},
+							"description": "Магнет ссылка через заголовок (альтернативный способ)",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "HTML страница с WebTorrent плеером",
+							"content": map[string]interface{}{
+								"text/html": map[string]interface{}{
+									"schema": map[string]string{"type": "string"},
+								},
+							},
+						},
+						"400": map[string]interface{}{
+							"description": "Отсутствует магнет ссылка",
+						},
+					},
+				},
+			},
+			"/api/v1/webtorrent/metadata": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Метаданные медиа",
+					"description": "Получение метаданных фильма или сериала по названию для WebTorrent плеера",
+					"tags": []string{"WebTorrent"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "query",
+							"in": "query",
+							"required": true,
+							"schema": map[string]string{"type": "string"},
+							"description": "Название для поиска (извлеченное из торрента)",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Метаданные найдены",
+							"content": map[string]interface{}{
+								"application/json": map[string]interface{}{
+									"schema": map[string]interface{}{
+										"$ref": "#/components/schemas/WebTorrentMetadata",
+									},
+								},
+							},
+						},
+						"400": map[string]interface{}{
+							"description": "Отсутствует параметр query",
+						},
+						"404": map[string]interface{}{
+							"description": "Метаданные не найдены",
+						},
+					},
+				},
+			},
 			"/api/v1/torrents/search/{imdbId}": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary":     "Поиск торрентов",
@@ -1536,6 +1606,71 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 						"facebook_id": map[string]string{"type": "string"},
 						"instagram_id": map[string]string{"type": "string"},
 						"twitter_id": map[string]string{"type": "string"},
+					},
+				},
+				"WebTorrentMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]string{"type": "integer"},
+						"title": map[string]string{"type": "string"},
+						"type": map[string]interface{}{
+							"type": "string",
+							"enum": []string{"movie", "tv"},
+						},
+						"year": map[string]string{"type": "integer"},
+						"posterPath": map[string]string{"type": "string"},
+						"backdropPath": map[string]string{"type": "string"},
+						"overview": map[string]string{"type": "string"},
+						"runtime": map[string]string{"type": "integer"},
+						"genres": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/Genre",
+							},
+						},
+						"seasons": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/SeasonMetadata",
+							},
+						},
+						"episodes": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/EpisodeMetadata",
+							},
+						},
+					},
+				},
+				"SeasonMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"seasonNumber": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
+						"episodes": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/EpisodeMetadata",
+							},
+						},
+					},
+				},
+				"EpisodeMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"episodeNumber": map[string]string{"type": "integer"},
+						"seasonNumber": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
+						"overview": map[string]string{"type": "string"},
+						"runtime": map[string]string{"type": "integer"},
+						"stillPath": map[string]string{"type": "string"},
+					},
+				},
+				"Genre": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
 					},
 				},
 			},

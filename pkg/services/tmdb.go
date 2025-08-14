@@ -119,6 +119,11 @@ func (s *TMDBService) SearchMulti(query string, page int, language string) (*mod
 	return &response, nil
 }
 
+// Алиас для совместимости с новым WebTorrent handler
+func (s *TMDBService) SearchTV(query string, page int, language string, firstAirDateYear int) (*models.TMDBTVResponse, error) {
+	return s.SearchTVShows(query, page, language, firstAirDateYear)
+}
+
 func (s *TMDBService) SearchTVShows(query string, page int, language string, firstAirDateYear int) (*models.TMDBTVResponse, error) {
 	params := url.Values{}
 	params.Set("query", query)
@@ -495,4 +500,16 @@ func (s *TMDBService) DiscoverTVByGenre(genreID, page int, language string) (*mo
 	var response models.TMDBResponse
 	err := s.makeRequest(endpoint, &response)
 	return &response, err
+}
+
+func (s *TMDBService) GetTVSeason(tvID, seasonNumber int, language string) (*models.SeasonDetails, error) {
+	if language == "" {
+		language = "ru-RU"
+	}
+
+	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?language=%s", s.baseURL, tvID, seasonNumber, language)
+	
+	var season models.SeasonDetails
+	err := s.makeRequest(endpoint, &season)
+	return &season, err
 }
