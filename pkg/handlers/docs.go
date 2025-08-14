@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/MarceloPetrucio/go-scalar-api-reference"
@@ -25,9 +24,10 @@ func (h *DocsHandler) RedirectToDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	baseURL := determineBaseURL(r)
+	_ = determineBaseURL(r)
 
-	spec := getOpenAPISpecWithURL(baseURL)
+	// Use relative server URL to inherit correct scheme/host from the browser/proxy
+	spec := getOpenAPISpecWithURL("/")
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -37,10 +37,11 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
-	baseURL := determineBaseURL(r)
+	_ = determineBaseURL(r)
 
+	// Use relative SpecURL so the browser automatically uses the current origin and protocol
 	htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
-		SpecURL: fmt.Sprintf("%s/openapi.json", baseURL),
+		SpecURL: "/openapi.json",
 		CustomOptions: scalar.CustomOptions{
 			PageTitle: "Neo Movies API Documentation",
 		},
@@ -59,15 +60,10 @@ func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func determineBaseURL(r *http.Request) string {
-	if envBase := os.Getenv("BASE_URL"); envBase != "" {
-		return envBase
-	}
-
-	// Defaults
+	// Prefer proxy headers and request info over environment to avoid wrong scheme on platforms like Vercel
 	proto := ""
 	host := r.Host
 
-	// RFC 7239 Forwarded header: e.g. "for=1.2.3.4; proto=https; host=example.com"
 	if fwd := r.Header.Get("Forwarded"); fwd != "" {
 		for _, part := range strings.Split(fwd, ";") {
 			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
@@ -89,7 +85,6 @@ func determineBaseURL(r *http.Request) string {
 		}
 	}
 
-	// Fallback to X-Forwarded-* headers
 	if proto == "" {
 		if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
 			proto = strings.ToLower(strings.TrimSpace(strings.Split(p, ",")[0]))
@@ -99,7 +94,6 @@ func determineBaseURL(r *http.Request) string {
 		host = strings.TrimSpace(strings.Split(xfh, ",")[0])
 	}
 
-	// Last resort: infer from TLS
 	if proto == "" {
 		if r.TLS != nil {
 			proto = "https"
@@ -108,7 +102,6 @@ func determineBaseURL(r *http.Request) string {
 		}
 	}
 
-	// Respect X-Forwarded-Port if host has no explicit port and it is non-default
 	if xfp := r.Header.Get("X-Forwarded-Port"); xfp != "" && !strings.Contains(host, ":") {
 		isDefault := (proto == "http" && xfp == "80") || (proto == "https" && xfp == "443")
 		if !isDefault {
