@@ -64,7 +64,7 @@ func main() {
 	api.HandleFunc("/auth/google/login", authHandler.GoogleLogin).Methods("GET")
 	api.HandleFunc("/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
 
-	r.HandleFunc("/search/multi", searchHandler.MultiSearch).Methods("GET")
+	api.HandleFunc("/search/multi", searchHandler.MultiSearch).Methods("GET")
 
 	api.HandleFunc("/categories", categoriesHandler.GetCategories).Methods("GET")
 	api.HandleFunc("/categories/{id}/movies", categoriesHandler.GetMoviesByCategory).Methods("GET")
@@ -123,8 +123,9 @@ func main() {
 	corsHandler := handlers.CORS(
 		handlers.AllowedOrigins([]string{"*"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"}),
+		handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "X-CSRF-Token"}),
 		handlers.AllowCredentials(),
+		handlers.ExposedHeaders([]string{"Authorization", "Content-Type"}),
 	)
 
 	var finalHandler http.Handler

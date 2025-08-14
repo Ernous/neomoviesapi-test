@@ -37,6 +37,8 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With")
 	json.NewEncoder(w).Encode(spec)
 }
 
@@ -64,6 +66,8 @@ func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	fmt.Fprintln(w, htmlContent)
 }
 
@@ -141,7 +145,7 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					},
 				},
 			},
-			"/search/multi": map[string]interface{}{
+			"/api/v1/search/multi": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary": "Мультипоиск",
 					"description": "Поиск фильмов, сериалов и актеров",
