@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"neomovies-api/pkg/models"
 	"neomovies-api/pkg/services"
@@ -227,6 +228,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 
     <script>
         const magnetLink = {{.MagnetLink}};
+        const baseURL = {{.BaseURL}};
         const client = new WebTorrent();
         
         let currentTorrent = null;
@@ -280,7 +282,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             // Извлекаем название для поиска из имени торрента
             const searchQuery = extractTitleFromTorrentName(torrentName);
             
-            fetch('/api/v1/webtorrent/metadata?query=' + encodeURIComponent(searchQuery))
+            fetch(baseURL + '/api/v1/webtorrent/metadata?query=' + encodeURIComponent(searchQuery))
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.data) {
@@ -436,13 +438,25 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Определяем правильный baseURL
+	baseURL := getSchemeForWebTorrent(r) + "://" + r.Host
+	
 	data := struct {
 		MagnetLink string
+		BaseURL    string
 	}{
 		MagnetLink: strconv.Quote(decodedMagnet),
+		BaseURL:    strconv.Quote(baseURL),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	// Добавляем заголовки безопасности для HTTPS
+	if getSchemeForWebTorrent(r) == "https" {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Content-Security-Policy", "upgrade-insecure-requests")
+	}
+	
 	err = t.Execute(w, data)
 	if err != nil {
 		http.Error(w, "Template execution error", http.StatusInternalServerError)
@@ -565,6 +579,40 @@ func extractYear(dateString string) int {
 		}
 	}
 	return 0
+}
+
+// getSchemeForWebTorrent определяет правильную схему протокола для WebTorrent
+func getSchemeForWebTorrent(r *http.Request) string {
+	// Проверяем заголовки прокси/балансировщика
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return strings.ToLower(proto)
+	}
+	
+	if proto := r.Header.Get("X-Forwarded-Protocol"); proto != "" {
+		return strings.ToLower(proto)
+	}
+	
+	if r.Header.Get("X-Forwarded-Ssl") == "on" {
+		return "https"
+	}
+	
+	if r.Header.Get("X-Url-Scheme") != "" {
+		return strings.ToLower(r.Header.Get("X-Url-Scheme"))
+	}
+	
+	// Cloudflare headers
+	if r.Header.Get("CF-Visitor") != "" {
+		if strings.Contains(r.Header.Get("CF-Visitor"), `"scheme":"https"`) {
+			return "https"
+		}
+	}
+	
+	// Fallback к стандартной проверке TLS
+	if r.TLS != nil {
+		return "https"
+	}
+	
+	return "http"
 }
 
 // Проверяем есть ли нужные методы в TMDB сервисе

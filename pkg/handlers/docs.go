@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/MarceloPetrucio/go-scalar-api-reference"
 )
@@ -26,11 +27,9 @@ func (h *DocsHandler) RedirectToDocs(w http.ResponseWriter, r *http.Request) {
 func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
-		if r.TLS != nil {
-			baseURL = fmt.Sprintf("https://%s", r.Host)
-		} else {
-			baseURL = fmt.Sprintf("http://%s", r.Host)
-		}
+		// Проверяем протокол с учетом прокси заголовков
+		scheme := getScheme(r)
+		baseURL = fmt.Sprintf("%s://%s", scheme, r.Host)
 	}
 
 	spec := getOpenAPISpecWithURL(baseURL)
@@ -39,17 +38,22 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With")
+	
+	// Добавляем заголовки безопасности для HTTPS
+	if getScheme(r) == "https" {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Content-Security-Policy", "upgrade-insecure-requests")
+	}
+	
 	json.NewEncoder(w).Encode(spec)
 }
 
 func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
-		if r.TLS != nil {
-			baseURL = fmt.Sprintf("https://%s", r.Host)
-		} else {
-			baseURL = fmt.Sprintf("http://%s", r.Host)
-		}
+		// Проверяем протокол с учетом прокси заголовков
+		scheme := getScheme(r)
+		baseURL = fmt.Sprintf("%s://%s", scheme, r.Host)
 	}
 
 	htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
@@ -68,7 +72,48 @@ func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	// Добавляем заголовки безопасности для HTTPS
+	if getScheme(r) == "https" {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Content-Security-Policy", "upgrade-insecure-requests")
+	}
+	
 	fmt.Fprintln(w, htmlContent)
+}
+
+// getScheme определяет правильную схему протокола с учетом прокси заголовков
+func getScheme(r *http.Request) string {
+	// Проверяем заголовки прокси/балансировщика
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return strings.ToLower(proto)
+	}
+	
+	if proto := r.Header.Get("X-Forwarded-Protocol"); proto != "" {
+		return strings.ToLower(proto)
+	}
+	
+	if r.Header.Get("X-Forwarded-Ssl") == "on" {
+		return "https"
+	}
+	
+	if r.Header.Get("X-Url-Scheme") != "" {
+		return strings.ToLower(r.Header.Get("X-Url-Scheme"))
+	}
+	
+	// Cloudflare headers
+	if r.Header.Get("CF-Visitor") != "" {
+		if strings.Contains(r.Header.Get("CF-Visitor"), `"scheme":"https"`) {
+			return "https"
+		}
+	}
+	
+	// Fallback к стандартной проверке TLS
+	if r.TLS != nil {
+		return "https"
+	}
+	
+	return "http"
 }
 
 type OpenAPISpec struct {
