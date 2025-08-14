@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"neomovies-api/pkg/models"
 	"neomovies-api/pkg/services"
@@ -68,6 +69,15 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		decodedMagnet = magnetLink
 	}
+
+	// Проверяем, что это действительно magnet ссылка
+	if !isValidMagnetLink(decodedMagnet) {
+		http.Error(w, "Invalid magnet link format", http.StatusBadRequest)
+		return
+	}
+
+	// Очищаем magnet ссылку от лишних символов
+	cleanedMagnet := cleanMagnetLink(decodedMagnet)
 
 	// Отдаем HTML страницу с плеером
 	tmpl := `<!DOCTYPE html>
@@ -231,6 +241,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         
         let currentTorrent = null;
         let mediaMetadata = null;
+        let torrentTimeout = null;
         
         const elements = {
             loading: document.getElementById('loading'),
@@ -245,9 +256,51 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         };
         
         // Загружаем торрент
-        client.add(magnetLink, onTorrent);
+        console.log('Попытка загрузки торрента:', magnetLink);
+        
+        // Проверяем, что WebTorrent доступен
+        if (typeof WebTorrent === 'undefined') {
+            showError('WebTorrent библиотека не загружена. Проверьте подключение к интернету.');
+            return;
+        }
+        
+        // Устанавливаем таймаут на 30 секунд
+        torrentTimeout = setTimeout(() => {
+            if (!currentTorrent) {
+                showError('Таймаут загрузки торрента. Проверьте magnet ссылку и попробуйте снова.');
+            }
+        }, 30000);
+        
+        try {
+            // Проверяем формат magnet ссылки перед добавлением
+            if (!magnetLink.startsWith('magnet:?')) {
+                showError('Неверный формат magnet ссылки. Ссылка должна начинаться с "magnet:?"');
+                return;
+            }
+            
+            if (!magnetLink.includes('xt=urn:btih:')) {
+                showError('Magnet ссылка должна содержать info hash (xt=urn:btih:)');
+                return;
+            }
+            
+            client.add(magnetLink, onTorrent, (err) => {
+                if (err) {
+                    console.error('Ошибка при добавлении торрента:', err);
+                    showError('Ошибка торрент клиента: ' + err.message);
+                }
+            });
+        } catch (error) {
+            console.error('Ошибка при инициализации торрента:', error);
+            showError('Ошибка инициализации: ' + error.message);
+        }
         
         function onTorrent(torrent) {
+            // Очищаем таймаут
+            if (torrentTimeout) {
+                clearTimeout(torrentTimeout);
+                torrentTimeout = null;
+            }
+            
             currentTorrent = torrent;
             console.log('Торрент загружен:', torrent.name);
             
@@ -397,6 +450,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         
         function showError(message) {
             elements.loading.innerHTML = '<div class="error">' + message + '</div>';
+            console.error('WebTorrent Error:', message);
         }
         
         // Обработка прогресса загрузки
@@ -411,7 +465,16 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         
         // Глобальная обработка ошибок
         client.on('error', (err) => {
+            console.error('WebTorrent client error:', err);
             showError('Ошибка торрент клиента: ' + err.message);
+        });
+        
+        // Обработка ошибок торрента
+        client.on('torrent', (torrent) => {
+            torrent.on('error', (err) => {
+                console.error('Torrent error:', err);
+                showError('Ошибка торрента: ' + err.message);
+            });
         });
         
         // Управление с клавиатуры
@@ -439,7 +502,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		MagnetLink string
 	}{
-		MagnetLink: strconv.Quote(decodedMagnet),
+		MagnetLink: strconv.Quote(cleanedMagnet),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -575,4 +638,44 @@ func (h *WebTorrentHandler) checkMethods() {
 	// - GetMovie
 	// - GetTVShow
 	// - GetTVSeason
+}
+
+// isValidMagnetLink проверяет, что ссылка является корректной magnet ссылкой
+func isValidMagnetLink(magnetLink string) bool {
+	// Проверяем, что ссылка начинается с magnet:
+	if len(magnetLink) < 8 || magnetLink[:8] != "magnet:?" {
+		return false
+	}
+	
+	// Проверяем наличие обязательных параметров
+	if !contains(magnetLink, "xt=urn:btih:") {
+		return false
+	}
+	
+	return true
+}
+
+// cleanMagnetLink очищает magnet ссылку от лишних символов и нормализует её
+func cleanMagnetLink(magnetLink string) string {
+	// Убираем лишние пробелы
+	cleaned := strings.TrimSpace(magnetLink)
+	
+	// Убираем переносы строк
+	cleaned = strings.ReplaceAll(cleaned, "\n", "")
+	cleaned = strings.ReplaceAll(cleaned, "\r", "")
+	
+	// Убираем лишние пробелы внутри ссылки
+	cleaned = strings.ReplaceAll(cleaned, " ", "")
+	
+	// Проверяем, что ссылка начинается с magnet:
+	if !strings.HasPrefix(cleaned, "magnet:?") {
+		return magnetLink // Возвращаем оригинал если что-то пошло не так
+	}
+	
+	return cleaned
+}
+
+// contains проверяет, содержит ли строка подстроку
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
