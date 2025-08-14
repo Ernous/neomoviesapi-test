@@ -35,16 +35,19 @@ func main() {
 
 	movieService := services.NewMovieService(db, tmdbService)
 	tvService := services.NewTVService(db, tmdbService)
+	favoritesService := services.NewFavoritesService(db, tmdbService)
 	torrentService := services.NewTorrentServiceWithConfig(cfg.RedAPIBaseURL, cfg.RedAPIKey)
 	reactionsService := services.NewReactionsService(db)
 
 	authHandler := appHandlers.NewAuthHandler(authService)
 	movieHandler := appHandlers.NewMovieHandler(movieService)
 	tvHandler := appHandlers.NewTVHandler(tvService)
+	favoritesHandler := appHandlers.NewFavoritesHandler(favoritesService)
 	docsHandler := appHandlers.NewDocsHandler()
 	searchHandler := appHandlers.NewSearchHandler(tmdbService)
 	categoriesHandler := appHandlers.NewCategoriesHandler(tmdbService)
 	playersHandler := appHandlers.NewPlayersHandler(cfg)
+	webtorrentHandler := appHandlers.NewWebTorrentHandler(tmdbService)
 	torrentsHandler := appHandlers.NewTorrentsHandler(torrentService, tmdbService)
 	reactionsHandler := appHandlers.NewReactionsHandler(reactionsService)
 	imagesHandler := appHandlers.NewImagesHandler()
@@ -64,14 +67,18 @@ func main() {
 	api.HandleFunc("/auth/google/login", authHandler.GoogleLogin).Methods("GET")
 	api.HandleFunc("/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
 
-	r.HandleFunc("/search/multi", searchHandler.MultiSearch).Methods("GET")
+	api.HandleFunc("/search/multi", searchHandler.MultiSearch).Methods("GET")
 
 	api.HandleFunc("/categories", categoriesHandler.GetCategories).Methods("GET")
 	api.HandleFunc("/categories/{id}/movies", categoriesHandler.GetMoviesByCategory).Methods("GET")
+	api.HandleFunc("/categories/{id}/media", categoriesHandler.GetMediaByCategory).Methods("GET")
 
 	api.HandleFunc("/players/alloha/{imdb_id}", playersHandler.GetAllohaPlayer).Methods("GET")
 	api.HandleFunc("/players/lumex/{imdb_id}", playersHandler.GetLumexPlayer).Methods("GET")
     api.HandleFunc("/players/vibix/{imdb_id}", playersHandler.GetVibixPlayer).Methods("GET")
+
+	api.HandleFunc("/webtorrent/player", webtorrentHandler.OpenPlayer).Methods("GET")
+	api.HandleFunc("/webtorrent/metadata", webtorrentHandler.GetMetadata).Methods("GET")
 
 	api.HandleFunc("/torrents/search/{imdbId}", torrentsHandler.SearchTorrents).Methods("GET")
 	api.HandleFunc("/torrents/movies", torrentsHandler.SearchMovies).Methods("GET")
@@ -107,9 +114,10 @@ func main() {
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 
-	protected.HandleFunc("/favorites", movieHandler.GetFavorites).Methods("GET")
-	protected.HandleFunc("/favorites/{id}", movieHandler.AddToFavorites).Methods("POST")
-	protected.HandleFunc("/favorites/{id}", movieHandler.RemoveFromFavorites).Methods("DELETE")
+	protected.HandleFunc("/favorites", favoritesHandler.GetFavorites).Methods("GET")
+	protected.HandleFunc("/favorites/{id}", favoritesHandler.AddToFavorites).Methods("POST")
+	protected.HandleFunc("/favorites/{id}", favoritesHandler.RemoveFromFavorites).Methods("DELETE")
+	protected.HandleFunc("/favorites/{id}/check", favoritesHandler.CheckIsFavorite).Methods("GET")
 
 	protected.HandleFunc("/auth/profile", authHandler.GetProfile).Methods("GET")
 	protected.HandleFunc("/auth/profile", authHandler.UpdateProfile).Methods("PUT")
@@ -123,8 +131,9 @@ func main() {
 	corsHandler := handlers.CORS(
 		handlers.AllowedOrigins([]string{"*"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"}),
+		handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "X-CSRF-Token"}),
 		handlers.AllowCredentials(),
+		handlers.ExposedHeaders([]string{"Authorization", "Content-Type"}),
 	)
 
 	var finalHandler http.Handler

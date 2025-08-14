@@ -159,6 +159,31 @@ type Season struct {
 	SeasonNumber int    `json:"season_number"`
 }
 
+type SeasonDetails struct {
+	AirDate      string    `json:"air_date"`
+	Episodes     []Episode `json:"episodes"`
+	Name         string    `json:"name"`
+	Overview     string    `json:"overview"`
+	ID           int       `json:"id"`
+	PosterPath   string    `json:"poster_path"`
+	SeasonNumber int       `json:"season_number"`
+}
+
+type Episode struct {
+	AirDate       string  `json:"air_date"`
+	EpisodeNumber int     `json:"episode_number"`
+	ID            int     `json:"id"`
+	Name          string  `json:"name"`
+	Overview      string  `json:"overview"`
+	ProductionCode string `json:"production_code"`
+	Runtime       int     `json:"runtime"`
+	SeasonNumber  int     `json:"season_number"`
+	ShowID        int     `json:"show_id"`
+	StillPath     string  `json:"still_path"`
+	VoteAverage   float64 `json:"vote_average"`
+	VoteCount     int     `json:"vote_count"`
+}
+
 type TMDBResponse struct {
 	Page         int     `json:"page"`
 	Results      []Movie `json:"results"`

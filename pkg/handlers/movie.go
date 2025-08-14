@@ -7,7 +7,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"neomovies-api/pkg/middleware"
 	"neomovies-api/pkg/models"
 	"neomovies-api/pkg/services"
 )
@@ -190,73 +189,7 @@ func (h *MovieHandler) GetSimilar(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *MovieHandler) GetFavorites(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusInternalServerError)
-		return
-	}
 
-	language := r.URL.Query().Get("language")
-
-	movies, err := h.movieService.GetFavorites(userID, language)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.APIResponse{
-		Success: true,
-		Data:    movies,
-	})
-}
-
-func (h *MovieHandler) AddToFavorites(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusInternalServerError)
-		return
-	}
-
-	vars := mux.Vars(r)
-	movieID := vars["id"]
-
-	err := h.movieService.AddToFavorites(userID, movieID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.APIResponse{
-		Success: true,
-		Message: "Movie added to favorites",
-	})
-}
-
-func (h *MovieHandler) RemoveFromFavorites(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusInternalServerError)
-		return
-	}
-
-	vars := mux.Vars(r)
-	movieID := vars["id"]
-
-	err := h.movieService.RemoveFromFavorites(userID, movieID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.APIResponse{
-		Success: true,
-		Message: "Movie removed from favorites",
-	})
-}
 
 func (h *MovieHandler) GetExternalIDs(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

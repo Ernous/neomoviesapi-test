@@ -37,6 +37,8 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With")
 	json.NewEncoder(w).Encode(spec)
 }
 
@@ -64,6 +66,8 @@ func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	fmt.Fprintln(w, htmlContent)
 }
 
@@ -141,7 +145,7 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					},
 				},
 			},
-			"/search/multi": map[string]interface{}{
+			"/api/v1/search/multi": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary": "Мультипоиск",
 					"description": "Поиск фильмов, сериалов и актеров",
@@ -205,6 +209,58 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
 							"description": "Фильмы категории",
+						},
+					},
+				},
+			},
+			"/api/v1/categories/{id}/media": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Медиа по категории",
+					"description": "Получение фильмов или сериалов по категории",
+					"tags": []string{"Categories"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "id",
+							"in": "path",
+							"required": true,
+							"schema": map[string]string{"type": "integer"},
+							"description": "ID категории",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
+						},
+						{
+							"name": "page",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "integer",
+								"default": 1,
+							},
+							"description": "Номер страницы",
+						},
+						{
+							"name": "language",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"default": "ru-RU",
+							},
+							"description": "Язык ответа",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Медиа по категории",
 						},
 					},
 				},
@@ -274,6 +330,76 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 						},
 						"404": map[string]interface{}{"description": "Фильм не найден"},
 						"503": map[string]interface{}{"description": "VIBIX_TOKEN не настроен"},
+					},
+				},
+			},
+			"/api/v1/webtorrent/player": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "WebTorrent плеер",
+					"description": "Открытие WebTorrent плеера с магнет ссылкой. Плеер работает полностью на стороне клиента.",
+					"tags": []string{"WebTorrent"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "magnet",
+							"in": "query",
+							"required": false,
+							"schema": map[string]string{"type": "string"},
+							"description": "Магнет ссылка торрента",
+						},
+						{
+							"name": "X-Magnet-Link",
+							"in": "header",
+							"required": false,
+							"schema": map[string]string{"type": "string"},
+							"description": "Магнет ссылка через заголовок (альтернативный способ)",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "HTML страница с WebTorrent плеером",
+							"content": map[string]interface{}{
+								"text/html": map[string]interface{}{
+									"schema": map[string]string{"type": "string"},
+								},
+							},
+						},
+						"400": map[string]interface{}{
+							"description": "Отсутствует магнет ссылка",
+						},
+					},
+				},
+			},
+			"/api/v1/webtorrent/metadata": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Метаданные медиа",
+					"description": "Получение метаданных фильма или сериала по названию для WebTorrent плеера",
+					"tags": []string{"WebTorrent"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "query",
+							"in": "query",
+							"required": true,
+							"schema": map[string]string{"type": "string"},
+							"description": "Название для поиска (извлеченное из торрента)",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Метаданные найдены",
+							"content": map[string]interface{}{
+								"application/json": map[string]interface{}{
+									"schema": map[string]interface{}{
+										"$ref": "#/components/schemas/WebTorrentMetadata",
+									},
+								},
+							},
+						},
+						"400": map[string]interface{}{
+							"description": "Отсутствует параметр query",
+						},
+						"404": map[string]interface{}{
+							"description": "Метаданные не найдены",
+						},
 					},
 				},
 			},
@@ -715,15 +841,15 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 			},
 			"/api/v1/favorites": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "Получить избранные фильмы",
-					"description": "Список избранных фильмов пользователя",
+					"summary": "Получить избранное",
+					"description": "Список избранных фильмов и сериалов пользователя",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Список избранных фильмов",
+							"description": "Список избранного",
 						},
 					},
 				},
@@ -731,7 +857,7 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 			"/api/v1/favorites/{id}": map[string]interface{}{
 				"post": map[string]interface{}{
 					"summary": "Добавить в избранное",
-					"description": "Добавление фильма в избранное",
+					"description": "Добавление фильма или сериала в избранное",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
@@ -742,18 +868,29 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 							"in": "path",
 							"required": true,
 							"schema": map[string]string{"type": "string"},
-							"description": "ID фильма",
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
 						},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Фильм добавлен в избранное",
+							"description": "Добавлено в избранное",
 						},
 					},
 				},
 				"delete": map[string]interface{}{
 					"summary": "Удалить из избранного",
-					"description": "Удаление фильма из избранного",
+					"description": "Удаление фильма или сериала из избранного",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
@@ -764,12 +901,58 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 							"in": "path",
 							"required": true,
 							"schema": map[string]string{"type": "string"},
-							"description": "ID фильма",
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
 						},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Фильм удален из избранного",
+							"description": "Удалено из избранного",
+						},
+					},
+				},
+			},
+			"/api/v1/favorites/{id}/check": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Проверить избранное",
+					"description": "Проверка, находится ли медиа в избранном",
+					"tags": []string{"Favorites"},
+					"security": []map[string][]string{
+						{"bearerAuth": []string{}},
+					},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "id",
+							"in": "path",
+							"required": true,
+							"schema": map[string]string{"type": "string"},
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Статус избранного",
 						},
 					},
 				},
@@ -1423,6 +1606,71 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 						"facebook_id": map[string]string{"type": "string"},
 						"instagram_id": map[string]string{"type": "string"},
 						"twitter_id": map[string]string{"type": "string"},
+					},
+				},
+				"WebTorrentMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]string{"type": "integer"},
+						"title": map[string]string{"type": "string"},
+						"type": map[string]interface{}{
+							"type": "string",
+							"enum": []string{"movie", "tv"},
+						},
+						"year": map[string]string{"type": "integer"},
+						"posterPath": map[string]string{"type": "string"},
+						"backdropPath": map[string]string{"type": "string"},
+						"overview": map[string]string{"type": "string"},
+						"runtime": map[string]string{"type": "integer"},
+						"genres": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/Genre",
+							},
+						},
+						"seasons": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/SeasonMetadata",
+							},
+						},
+						"episodes": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/EpisodeMetadata",
+							},
+						},
+					},
+				},
+				"SeasonMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"seasonNumber": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
+						"episodes": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"$ref": "#/components/schemas/EpisodeMetadata",
+							},
+						},
+					},
+				},
+				"EpisodeMetadata": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"episodeNumber": map[string]string{"type": "integer"},
+						"seasonNumber": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
+						"overview": map[string]string{"type": "string"},
+						"runtime": map[string]string{"type": "integer"},
+						"stillPath": map[string]string{"type": "string"},
+					},
+				},
+				"Genre": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]string{"type": "integer"},
+						"name": map[string]string{"type": "string"},
 					},
 				},
 			},
