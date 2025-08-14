@@ -53,7 +53,7 @@ func (h *CategoriesHandler) GetCategories(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func (h *CategoriesHandler) GetMoviesByCategory(w http.ResponseWriter, r *http.Request) {
+func (h *CategoriesHandler) GetMediaByCategory(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	categoryID, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -67,18 +67,44 @@ func (h *CategoriesHandler) GetMoviesByCategory(w http.ResponseWriter, r *http.R
 		language = "ru-RU"
 	}
 
-	// Используем discover API для получения фильмов по жанру
-	movies, err := h.tmdbService.DiscoverMoviesByGenre(categoryID, page, language)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	mediaType := r.URL.Query().Get("type")
+	if mediaType == "" {
+		mediaType = "movie" // По умолчанию фильмы для обратной совместимости
+	}
+
+	if mediaType != "movie" && mediaType != "tv" {
+		http.Error(w, "Media type must be 'movie' or 'tv'", http.StatusBadRequest)
+		return
+	}
+
+	var data interface{}
+	var err2 error
+
+	if mediaType == "movie" {
+		// Используем discover API для получения фильмов по жанру
+		data, err2 = h.tmdbService.DiscoverMoviesByGenre(categoryID, page, language)
+	} else {
+		// Используем discover API для получения сериалов по жанру
+		data, err2 = h.tmdbService.DiscoverTVByGenre(categoryID, page, language)
+	}
+
+	if err2 != nil {
+		http.Error(w, err2.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(models.APIResponse{
 		Success: true,
-		Data:    movies,
+		Data:    data,
+		Message: "Media retrieved successfully",
 	})
+}
+
+// Старый метод для обратной совместимости
+func (h *CategoriesHandler) GetMoviesByCategory(w http.ResponseWriter, r *http.Request) {
+	// Просто перенаправляем на новый метод
+	h.GetMediaByCategory(w, r)
 }
 
 func generateSlug(name string) string {

@@ -213,6 +213,58 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 					},
 				},
 			},
+			"/api/v1/categories/{id}/media": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Медиа по категории",
+					"description": "Получение фильмов или сериалов по категории",
+					"tags": []string{"Categories"},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "id",
+							"in": "path",
+							"required": true,
+							"schema": map[string]string{"type": "integer"},
+							"description": "ID категории",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
+						},
+						{
+							"name": "page",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "integer",
+								"default": 1,
+							},
+							"description": "Номер страницы",
+						},
+						{
+							"name": "language",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"default": "ru-RU",
+							},
+							"description": "Язык ответа",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Медиа по категории",
+						},
+					},
+				},
+			},
 			"/api/v1/players/alloha/{imdb_id}": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary": "Плеер Alloha",
@@ -719,15 +771,15 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 			},
 			"/api/v1/favorites": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "Получить избранные фильмы",
-					"description": "Список избранных фильмов пользователя",
+					"summary": "Получить избранное",
+					"description": "Список избранных фильмов и сериалов пользователя",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Список избранных фильмов",
+							"description": "Список избранного",
 						},
 					},
 				},
@@ -735,7 +787,7 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 			"/api/v1/favorites/{id}": map[string]interface{}{
 				"post": map[string]interface{}{
 					"summary": "Добавить в избранное",
-					"description": "Добавление фильма в избранное",
+					"description": "Добавление фильма или сериала в избранное",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
@@ -746,18 +798,29 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 							"in": "path",
 							"required": true,
 							"schema": map[string]string{"type": "string"},
-							"description": "ID фильма",
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
 						},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Фильм добавлен в избранное",
+							"description": "Добавлено в избранное",
 						},
 					},
 				},
 				"delete": map[string]interface{}{
 					"summary": "Удалить из избранного",
-					"description": "Удаление фильма из избранного",
+					"description": "Удаление фильма или сериала из избранного",
 					"tags": []string{"Favorites"},
 					"security": []map[string][]string{
 						{"bearerAuth": []string{}},
@@ -768,12 +831,58 @@ func getOpenAPISpecWithURL(baseURL string) *OpenAPISpec {
 							"in": "path",
 							"required": true,
 							"schema": map[string]string{"type": "string"},
-							"description": "ID фильма",
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
 						},
 					},
 					"responses": map[string]interface{}{
 						"200": map[string]interface{}{
-							"description": "Фильм удален из избранного",
+							"description": "Удалено из избранного",
+						},
+					},
+				},
+			},
+			"/api/v1/favorites/{id}/check": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Проверить избранное",
+					"description": "Проверка, находится ли медиа в избранном",
+					"tags": []string{"Favorites"},
+					"security": []map[string][]string{
+						{"bearerAuth": []string{}},
+					},
+					"parameters": []map[string]interface{}{
+						{
+							"name": "id",
+							"in": "path",
+							"required": true,
+							"schema": map[string]string{"type": "string"},
+							"description": "ID медиа",
+						},
+						{
+							"name": "type",
+							"in": "query",
+							"required": false,
+							"schema": map[string]interface{}{
+								"type": "string",
+								"enum": []string{"movie", "tv"},
+								"default": "movie",
+							},
+							"description": "Тип медиа: movie или tv",
+						},
+					},
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "Статус избранного",
 						},
 					},
 				},

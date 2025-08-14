@@ -35,12 +35,14 @@ func main() {
 
 	movieService := services.NewMovieService(db, tmdbService)
 	tvService := services.NewTVService(db, tmdbService)
+	favoritesService := services.NewFavoritesService(db, tmdbService)
 	torrentService := services.NewTorrentServiceWithConfig(cfg.RedAPIBaseURL, cfg.RedAPIKey)
 	reactionsService := services.NewReactionsService(db)
 
 	authHandler := appHandlers.NewAuthHandler(authService)
 	movieHandler := appHandlers.NewMovieHandler(movieService)
 	tvHandler := appHandlers.NewTVHandler(tvService)
+	favoritesHandler := appHandlers.NewFavoritesHandler(favoritesService)
 	docsHandler := appHandlers.NewDocsHandler()
 	searchHandler := appHandlers.NewSearchHandler(tmdbService)
 	categoriesHandler := appHandlers.NewCategoriesHandler(tmdbService)
@@ -68,6 +70,7 @@ func main() {
 
 	api.HandleFunc("/categories", categoriesHandler.GetCategories).Methods("GET")
 	api.HandleFunc("/categories/{id}/movies", categoriesHandler.GetMoviesByCategory).Methods("GET")
+	api.HandleFunc("/categories/{id}/media", categoriesHandler.GetMediaByCategory).Methods("GET")
 
 	api.HandleFunc("/players/alloha/{imdb_id}", playersHandler.GetAllohaPlayer).Methods("GET")
 	api.HandleFunc("/players/lumex/{imdb_id}", playersHandler.GetLumexPlayer).Methods("GET")
@@ -107,9 +110,10 @@ func main() {
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 
-	protected.HandleFunc("/favorites", movieHandler.GetFavorites).Methods("GET")
-	protected.HandleFunc("/favorites/{id}", movieHandler.AddToFavorites).Methods("POST")
-	protected.HandleFunc("/favorites/{id}", movieHandler.RemoveFromFavorites).Methods("DELETE")
+	protected.HandleFunc("/favorites", favoritesHandler.GetFavorites).Methods("GET")
+	protected.HandleFunc("/favorites/{id}", favoritesHandler.AddToFavorites).Methods("POST")
+	protected.HandleFunc("/favorites/{id}", favoritesHandler.RemoveFromFavorites).Methods("DELETE")
+	protected.HandleFunc("/favorites/{id}/check", favoritesHandler.CheckIsFavorite).Methods("GET")
 
 	protected.HandleFunc("/auth/profile", authHandler.GetProfile).Methods("GET")
 	protected.HandleFunc("/auth/profile", authHandler.UpdateProfile).Methods("PUT")

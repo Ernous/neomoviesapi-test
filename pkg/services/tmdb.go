@@ -477,3 +477,22 @@ func (s *TMDBService) DiscoverMoviesByGenre(genreID, page int, language string) 
 	err := s.makeRequest(endpoint, &response)
 	return &response, err
 }
+
+func (s *TMDBService) DiscoverTVByGenre(genreID, page int, language string) (*models.TMDBResponse, error) {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(page))
+	params.Set("with_genres", strconv.Itoa(genreID))
+	params.Set("sort_by", "popularity.desc")
+	
+	if language != "" {
+		params.Set("language", language)
+	} else {
+		params.Set("language", "ru-RU")
+	}
+
+	endpoint := fmt.Sprintf("%s/discover/tv?%s", s.baseURL, params.Encode())
+	
+	var response models.TMDBResponse
+	err := s.makeRequest(endpoint, &response)
+	return &response, err
+}

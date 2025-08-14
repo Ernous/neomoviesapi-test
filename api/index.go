@@ -55,12 +55,14 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
     movieService := services.NewMovieService(globalDB, tmdbService)
     tvService := services.NewTVService(globalDB, tmdbService)
+    favoritesService := services.NewFavoritesService(globalDB, tmdbService)
     torrentService := services.NewTorrentServiceWithConfig(globalCfg.RedAPIBaseURL, globalCfg.RedAPIKey)
     reactionsService := services.NewReactionsService(globalDB)
 
     authHandler := handlersPkg.NewAuthHandler(authService)
     movieHandler := handlersPkg.NewMovieHandler(movieService)
     tvHandler := handlersPkg.NewTVHandler(tvService)
+    favoritesHandler := handlersPkg.NewFavoritesHandler(favoritesService)
     docsHandler := handlersPkg.NewDocsHandler()
     searchHandler := handlersPkg.NewSearchHandler(tmdbService)
     categoriesHandler := handlersPkg.NewCategoriesHandler(tmdbService)
@@ -88,6 +90,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
     api.HandleFunc("/categories", categoriesHandler.GetCategories).Methods("GET")
     api.HandleFunc("/categories/{id}/movies", categoriesHandler.GetMoviesByCategory).Methods("GET")
+    api.HandleFunc("/categories/{id}/media", categoriesHandler.GetMediaByCategory).Methods("GET")
 
     api.HandleFunc("/players/alloha/{imdb_id}", playersHandler.GetAllohaPlayer).Methods("GET")
     api.HandleFunc("/players/lumex/{imdb_id}", playersHandler.GetLumexPlayer).Methods("GET")
@@ -127,9 +130,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     protected := api.PathPrefix("").Subrouter()
     protected.Use(middleware.JWTAuth(globalCfg.JWTSecret))
 
-    protected.HandleFunc("/favorites", movieHandler.GetFavorites).Methods("GET")
-    protected.HandleFunc("/favorites/{id}", movieHandler.AddToFavorites).Methods("POST")
-    protected.HandleFunc("/favorites/{id}", movieHandler.RemoveFromFavorites).Methods("DELETE")
+    protected.HandleFunc("/favorites", favoritesHandler.GetFavorites).Methods("GET")
+    protected.HandleFunc("/favorites/{id}", favoritesHandler.AddToFavorites).Methods("POST")
+    protected.HandleFunc("/favorites/{id}", favoritesHandler.RemoveFromFavorites).Methods("DELETE")
+    protected.HandleFunc("/favorites/{id}/check", favoritesHandler.CheckIsFavorite).Methods("GET")
 
     protected.HandleFunc("/auth/profile", authHandler.GetProfile).Methods("GET")
     protected.HandleFunc("/auth/profile", authHandler.UpdateProfile).Methods("PUT")
