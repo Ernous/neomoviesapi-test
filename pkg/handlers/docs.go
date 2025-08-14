@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/MarceloPetrucio/go-scalar-api-reference"
 )
@@ -24,14 +25,7 @@ func (h *DocsHandler) RedirectToDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		if r.TLS != nil {
-			baseURL = fmt.Sprintf("https://%s", r.Host)
-		} else {
-			baseURL = fmt.Sprintf("http://%s", r.Host)
-		}
-	}
+	baseURL := determineBaseURL(r)
 
 	spec := getOpenAPISpecWithURL(baseURL)
 
@@ -43,14 +37,7 @@ func (h *DocsHandler) GetOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		if r.TLS != nil {
-			baseURL = fmt.Sprintf("https://%s", r.Host)
-		} else {
-			baseURL = fmt.Sprintf("http://%s", r.Host)
-		}
-	}
+	baseURL := determineBaseURL(r)
 
 	htmlContent, err := scalar.ApiReferenceHTML(&scalar.Options{
 		SpecURL: fmt.Sprintf("%s/openapi.json", baseURL),
@@ -69,6 +56,67 @@ func (h *DocsHandler) ServeDocs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	fmt.Fprintln(w, htmlContent)
+}
+
+func determineBaseURL(r *http.Request) string {
+	if envBase := os.Getenv("BASE_URL"); envBase != "" {
+		return envBase
+	}
+
+	// Defaults
+	proto := ""
+	host := r.Host
+
+	// RFC 7239 Forwarded header: e.g. "for=1.2.3.4; proto=https; host=example.com"
+	if fwd := r.Header.Get("Forwarded"); fwd != "" {
+		for _, part := range strings.Split(fwd, ";") {
+			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(kv[0]))
+			val := strings.Trim(strings.TrimSpace(kv[1]), "\"")
+			switch key {
+			case "proto":
+				if proto == "" {
+					proto = strings.ToLower(val)
+				}
+			case "host":
+				if val != "" {
+					host = val
+				}
+			}
+		}
+	}
+
+	// Fallback to X-Forwarded-* headers
+	if proto == "" {
+		if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+			proto = strings.ToLower(strings.TrimSpace(strings.Split(p, ",")[0]))
+		}
+	}
+	if xfh := r.Header.Get("X-Forwarded-Host"); xfh != "" {
+		host = strings.TrimSpace(strings.Split(xfh, ",")[0])
+	}
+
+	// Last resort: infer from TLS
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+
+	// Respect X-Forwarded-Port if host has no explicit port and it is non-default
+	if xfp := r.Header.Get("X-Forwarded-Port"); xfp != "" && !strings.Contains(host, ":") {
+		isDefault := (proto == "http" && xfp == "80") || (proto == "https" && xfp == "443")
+		if !isDefault {
+			host = host + ":" + xfp
+		}
+	}
+
+	return fmt.Sprintf("%s://%s", proto, host)
 }
 
 type OpenAPISpec struct {
