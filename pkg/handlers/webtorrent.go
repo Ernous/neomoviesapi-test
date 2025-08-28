@@ -550,7 +550,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
                     'Прогресс: ' + progress + '% | Пиры: ' + numPeers + ' | Скорость: ' + downloadSpeed + ' MB/s';
                 // Доп. лог для диагностики
                 if (progress % 5 === 0) {
-                    console.log(`[WebTorrent] ${progress}% peers=${numPeers} speed=${downloadSpeed}MB/s`);
+                    console.log('[WebTorrent] ' + progress + '% peers=' + numPeers + ' speed=' + downloadSpeed + 'MB/s');
                 }
             };
             torrent.on('download', updateStats);
