@@ -236,7 +236,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <script>
-        const identifier = {{.MagnetLink}};
+        const identifier = {{.MagnetLinkJSON}};
         const client = new WebTorrent();
         
         let currentTorrent = null;
@@ -578,10 +578,11 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mlJSON, _ := json.Marshal(cleanedMagnet)
 	data := struct {
-		MagnetLink string
+		MagnetLinkJSON template.JS
 	}{
-		MagnetLink: strconv.Quote(cleanedMagnet),
+		MagnetLinkJSON: template.JS(string(mlJSON)),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
