@@ -236,7 +236,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <script>
-        const magnetLink = {{.MagnetLink}};
+        const identifier = {{.MagnetLink}};
         const client = new WebTorrent();
         
         let currentTorrent = null;
@@ -256,7 +256,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         };
         
         // Загружаем торрент
-        console.log('Попытка загрузки торрента:', magnetLink);
+        console.log('Попытка загрузки торрента/идентификатора:', identifier);
         
         // Проверяем, что WebTorrent доступен
         if (typeof WebTorrent === 'undefined') {
@@ -272,21 +272,53 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         }, 30000);
         
         try {
-            // Проверяем формат magnet ссылки перед добавлением
-            if (!magnetLink.startsWith('magnet:?')) {
-                showError('Неверный формат magnet ссылки. Ссылка должна начинаться с "magnet:?"');
+            // Поддержка 40-символьного infoHash: собираем magnet автоматически
+            let magnetLink = null;
+            const hashLike = typeof identifier === 'string' && /^[a-fA-F0-9]{40}$/.test(identifier);
+            if (typeof identifier === 'string' && identifier.startsWith('magnet:?')) {
+                magnetLink = identifier;
+            } else if (hashLike) {
+                magnetLink = 'magnet:?xt=urn:btih:' + identifier;
+            } else {
+                // Пытаемся использовать как есть (magnet/http). В браузере http(s) .torrent может быть ограничен CORS
+                magnetLink = identifier;
+            }
+
+            // Базовая валидация
+            if (typeof magnetLink !== 'string' || !magnetLink) {
+                showError('Пустой идентификатор торрента');
                 return;
             }
-            
+
+            if (!magnetLink.startsWith('magnet:?')) {
+                showError('Ожидалась magnet ссылка или 40-символьный hash');
+                return;
+            }
+
             if (!magnetLink.includes('xt=urn:btih:')) {
                 showError('Magnet ссылка должна содержать info hash (xt=urn:btih:)');
                 return;
             }
-            
-            client.add(magnetLink, onTorrent, (err) => {
-                if (err) {
-                    console.error('Ошибка при добавлении торрента:', err);
-                    showError('Ошибка торрент клиента: ' + err.message);
+
+            // Список публичных WebRTC-трекеров для повышения доступности WebTorrent в браузере
+            const trackers = [
+                'wss://tracker.openwebtorrent.com',
+                'wss://tracker.btorrent.xyz',
+                'wss://tracker.fastcast.nz',
+                'wss://tracker.webtorrent.dev'
+            ];
+
+            const addOptions = {
+                announce: trackers,
+                maxWebConns: 6
+            };
+
+            client.add(magnetLink, addOptions, (torrent) => {
+                try {
+                    onTorrent(torrent);
+                } catch (err) {
+                    console.error('Ошибка обработчика торрента:', err);
+                    showError('Ошибка обработчика торрента: ' + err.message);
                 }
             });
         } catch (error) {
@@ -307,10 +339,17 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             // Получаем метаданные через API
             fetchMediaMetadata(torrent.name);
             
-            // Фильтруем только видео файлы
-            const videoFiles = torrent.files.filter(file => 
-                /\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v)$/i.test(file.name)
-            );
+            // Приоритизируем видео файлы и игнорируем не-видео
+            const videoFiles = torrent.files.filter(file => {
+                const isVideo = /\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v)$/i.test(file.name);
+                if (isVideo && typeof file.select === 'function') {
+                    file.select();
+                }
+                if (!isVideo && typeof file.deselect === 'function') {
+                    file.deselect();
+                }
+                return isVideo;
+            });
             
             if (videoFiles.length === 0) {
                 showError('Видео файлы не найдены в торренте');
@@ -455,12 +494,15 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
         
         // Обработка прогресса загрузки
         client.on('torrent', (torrent) => {
-            torrent.on('download', () => {
+            const updateStats = () => {
                 const progress = Math.round(torrent.progress * 100);
                 const downloadSpeed = (torrent.downloadSpeed / 1024 / 1024).toFixed(1);
-                elements.loadingProgress.textContent = 
-                    'Прогресс: ' + progress + '% | Скорость: ' + downloadSpeed + ' MB/s';
-            });
+                const numPeers = torrent.numPeers || 0;
+                elements.loadingProgress.textContent =
+                    'Прогресс: ' + progress + '% | Пиры: ' + numPeers + ' | Скорость: ' + downloadSpeed + ' MB/s';
+            };
+            torrent.on('download', updateStats);
+            torrent.on('wire', updateStats);
         });
         
         // Глобальная обработка ошибок
