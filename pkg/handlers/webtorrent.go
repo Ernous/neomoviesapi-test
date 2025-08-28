@@ -340,7 +340,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             fetchMediaMetadata(torrent.name);
             
             // Приоритизируем видео файлы и игнорируем не-видео
-            const videoFiles = torrent.files.filter(file => {
+            let videoFiles = torrent.files.filter(file => {
                 const isVideo = /\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v)$/i.test(file.name);
                 if (isVideo && typeof file.select === 'function') {
                     file.select();
@@ -350,6 +350,10 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
                 }
                 return isVideo;
             });
+            // Сортируем по размеру по убыванию, чтобы выбирать основной файл
+            try {
+                videoFiles.sort((a, b) => (b.length || 0) - (a.length || 0));
+            } catch (_) {}
             
             if (videoFiles.length === 0) {
                 showError('Видео файлы не найдены в торренте');
@@ -359,7 +363,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             // Показываем список файлов
             renderFileList(videoFiles);
             
-            // Автоматически выбираем первый файл
+            // Автоматически выбираем первый (наибольший) файл
             if (videoFiles.length > 0) {
                 playFile(videoFiles[0], 0);
             }
@@ -448,12 +452,37 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             // Обновляем информацию о серии
             updateEpisodeInfo(file.name, index);
             
-            // Воспроизводим файл
-            file.renderTo(elements.videoPlayer, (err) => {
+            // Готовим видео элемент
+            elements.videoPlayer.setAttribute('playsinline', 'true');
+            elements.videoPlayer.preload = 'auto';
+            
+            // Пытаемся воспроизвести через MediaSource
+            file.renderTo(elements.videoPlayer, { autoplay: true }, (err) => {
                 if (err) {
-                    showError('Ошибка воспроизведения: ' + err.message);
+                    console.warn('renderTo failed, trying blob URL fallback:', err);
+                    // Фолбэк: получить Blob URL и воспроизвести
+                    try {
+                        file.getBlobURL((blobErr, url) => {
+                            if (blobErr) {
+                                showError('Ошибка воспроизведения (blob): ' + blobErr.message);
+                                return;
+                            }
+                            elements.videoPlayer.src = url;
+                            elements.videoPlayer.style.display = 'block';
+                            const playPromise = elements.videoPlayer.play();
+                            if (playPromise && typeof playPromise.catch === 'function') {
+                                playPromise.catch(() => {});
+                            }
+                        });
+                    } catch (e) {
+                        showError('Ошибка воспроизведения: ' + e.message);
+                    }
                 } else {
                     elements.videoPlayer.style.display = 'block';
+                    const playPromise = elements.videoPlayer.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(() => {});
+                    }
                 }
             });
         }
@@ -492,7 +521,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             console.error('WebTorrent Error:', message);
         }
         
-        // Обработка прогресса загрузки
+        // Обработка прогресса загрузки и диагностика пиров
         client.on('torrent', (torrent) => {
             const updateStats = () => {
                 const progress = Math.round(torrent.progress * 100);
@@ -503,6 +532,14 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             };
             torrent.on('download', updateStats);
             torrent.on('wire', updateStats);
+            torrent.on('noPeers', (announceType) => {
+                console.warn('Нет пиров (' + announceType + '). Возможно, требуется VPN или другие WSS-трекеры.');
+            });
+        });
+
+        // Дополнительные предупреждения
+        client.on('warning', (w) => {
+            console.warn('WebTorrent warning:', w && w.message ? w.message : w);
         });
         
         // Глобальная обработка ошибок
