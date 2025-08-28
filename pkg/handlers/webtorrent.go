@@ -86,6 +86,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeoMovies WebTorrent Player</title>
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <script src="https://unpkg.com/webtorrent@latest/webtorrent.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -236,7 +237,17 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
 
     <script>
         const identifier = {{.MagnetLinkJSON}};
-        const client = new WebTorrent();
+        const client = new WebTorrent({
+            tracker: {
+                rtcConfig: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478?transport=udp' },
+                        { urls: 'stun:stun.cloudflare.com:3478' }
+                    ]
+                }
+            }
+        });
         
         let currentTorrent = null;
         let mediaMetadata = null;
@@ -300,17 +311,7 @@ func (h *WebTorrentHandler) OpenPlayer(w http.ResponseWriter, r *http.Request) {
             }
 
             // Список публичных WebRTC-трекеров для повышения доступности WebTorrent в браузере
-            const trackers = [
-                'wss://tracker.openwebtorrent.com',
-                'wss://tracker.btorrent.xyz',
-                'wss://tracker.fastcast.nz',
-                'wss://tracker.webtorrent.dev'
-            ];
-
-            const addOptions = {
-                announce: trackers,
-                maxWebConns: 6
-            };
+            const addOptions = { maxWebConns: 8 };
 
             client.add(magnetLink, addOptions, (torrent) => {
                 try {
